@@ -1,0 +1,8 @@
+google-genai
+python-dotenv
+pandas
+langchain
+langchain-google-genai
+gradio
+fastapi
+uvicorn
