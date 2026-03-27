@@ -78,22 +78,22 @@ jobs:
 
                       # Run the new container
                       # Start a new Docker container from the freshly built image
+                      # Name the container 'text2sql' so it can be referenced by name in future commands
+                      # Automatically restart the container unless it was explicitly stopped
+                      # Map port 7860 on the host to port 7860 inside the container (Gradio default port)
+                      # Pass the Azure OpenAI API key into the container as an environment variable
+                      # Pass the Azure OpenAI endpoint URL into the container as an environment variable
+                      # Pass the Azure OpenAI model deployment name into the container as an environment variable
+                      # Pass the Azure OpenAI API version into the container as an environment variable
+                      # Specify the image to use for this container
                       docker run -d \
-                        # Name the container 'text2sql' so it can be referenced by name in future commands
                         --name text2sql \
-                        # Automatically restart the container unless it was explicitly stopped
                         --restart unless-stopped \
-                        # Map port 7860 on the host to port 7860 inside the container (Gradio default port)
                         -p 7860:7860 \
-                        # Pass the Azure OpenAI API key into the container as an environment variable
                         -e AZURE_OPENAI_API_KEY="${{ secrets.AZURE_OPENAI_API_KEY }}" \
-                        # Pass the Azure OpenAI endpoint URL into the container as an environment variable
                         -e AZURE_OPENAI_ENDPOINT="${{ secrets.AZURE_OPENAI_ENDPOINT }}" \
-                        # Pass the Azure OpenAI model deployment name into the container as an environment variable
                         -e AZURE_OPENAI_DEPLOYMENT_NAME="${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}" \
-                        # Pass the Azure OpenAI API version into the container as an environment variable
                         -e AZURE_OPENAI_API_VERSION="${{ secrets.AZURE_OPENAI_API_VERSION }}" \
-                        # Specify the image to use for this container
                         text2sql:latest
 
                       # Remove dangling images to free up disk space
