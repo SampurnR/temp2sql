@@ -1,13 +1,32 @@
 import os
+import pandas as pd
 import gradio as gr
 from dotenv import load_dotenv
-from google import genai
+# from google import genai  # Gemini (Google GenAI)
+# from openai import AzureOpenAI  # Azure OpenAI (direct SDK)
+from langchain_openai import AzureChatOpenAI  # Azure OpenAI (LangChain)
 
-from helper import setup_database, text2sql
+from helper import DB_PATH, setup_database, text2sql
 
 load_dotenv()
 
-genai_client = genai.Client(api_key=os.environ['GOOGLE_API_KEY'])
+# --- Gemini (Google GenAI) ---
+# genai_client = genai.Client(api_key=os.environ['GOOGLE_API_KEY'])
+
+# --- Azure OpenAI (direct SDK) ---
+# genai_client = AzureOpenAI(
+#     api_key=os.environ['AZURE_OPENAI_API_KEY'],
+#     api_version=os.environ['AZURE_OPENAI_API_VERSION'],
+#     azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT']
+# )
+
+# --- Azure OpenAI (LangChain) ---
+genai_client = AzureChatOpenAI(
+    azure_deployment=os.environ['AZURE_OPENAI_DEPLOYMENT_NAME'],
+    azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT'],
+    api_key=os.environ['AZURE_OPENAI_API_KEY'],
+    api_version=os.environ['AZURE_OPENAI_API_VERSION']
+)
 
 
 def gradio_text2sql(user_query):
@@ -15,13 +34,11 @@ def gradio_text2sql(user_query):
     sql, results_df = text2sql(genai_client, user_query)
     if results_df is not None:
         return sql, results_df
-    return sql, "No results or query error."
+    return sql, pd.DataFrame()
 
 
 def main():
-    # Set up the database if it doesn't exist
-    if not os.path.exists('ecommerce.db'):
-        setup_database(db_name='ecommerce.db', data_dir='../data')
+    setup_database()
 
     demo = gr.Interface(
         fn=gradio_text2sql,
@@ -37,7 +54,7 @@ def main():
         description="Enter a natural language question and get SQL + results from the e-commerce database.",
     )
 
-    demo.launch()
+    demo.launch(server_name="0.0.0.0")
 
 
 if __name__ == '__main__':

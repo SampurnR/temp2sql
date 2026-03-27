@@ -1,7 +1,18 @@
 import os
 import sqlite3
+import urllib.request
 import pandas as pd
-from google import genai
+# from google import genai  # Gemini (Google GenAI)
+# from openai import AzureOpenAI  # Azure OpenAI (direct SDK)
+from langchain_openai import AzureChatOpenAI  # Azure OpenAI (LangChain)
+from langchain_core.messages import SystemMessage, HumanMessage
+
+
+# --- Paths ---
+
+_CODE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(_CODE_DIR, '..', 'data')
+DB_PATH = os.path.join(DATA_DIR, 'ecommerce.db')
 
 
 # --- Schema Definitions ---
@@ -113,9 +124,7 @@ COLUMN_DATA_TYPES = {
 }
 
 
-def get_system_prompt():
-    """Return the system prompt for the Text-to-SQL translator."""
-    return """
+SYSTEM_PROMPT = """
 ###ROLE###
 You are a highly skilled Text-to-SQL translator with expertise in SQL syntax, database schema interpretation, and natural language understanding. You generate syntactically correct and semantically accurate SQL queries based on user input and a given database schema.
 
@@ -251,11 +260,29 @@ Return only the sqllite SQL query as a code block using triple backticks and the
 """
 
 
-def setup_database(db_name='ecommerce.db', data_dir='../data'):
+def setup_database(db_name=DB_PATH, data_dir=DATA_DIR):
     """Create the SQLite database and load CSV data into tables."""
     if os.path.exists(db_name):
         os.remove(db_name)
         print(f"Removed existing database '{db_name}'.")
+
+    # Download CSVs from Mockaroo if not already present
+    os.makedirs(data_dir, exist_ok=True)
+    csv_urls = {
+        os.path.join(data_dir, 'customers.csv'): 'https://api.mockaroo.com/api/dde01370?count=1000&key=11149690',
+        os.path.join(data_dir, 'products.csv'):  'https://api.mockaroo.com/api/8ba6f630?count=1000&key=11149690',
+        os.path.join(data_dir, 'orders.csv'):    'https://api.mockaroo.com/api/6fa67fe0?count=3000&key=11149690',
+    }
+    for csv_path, url in csv_urls.items():
+        if not os.path.exists(csv_path):
+            print(f"Downloading '{csv_path}' from Mockaroo...")
+            try:
+                req = urllib.request.Request(url, headers={'User-Agent': 'curl/7.88.1'})
+                with urllib.request.urlopen(req) as resp, open(csv_path, 'wb') as f:
+                    f.write(resp.read())
+                print(f"  -> Downloaded successfully.")
+            except Exception as e:
+                print(f"  -> Failed to download '{csv_path}': {e}")
 
     conn = None
     try:
@@ -320,26 +347,57 @@ def setup_database(db_name='ecommerce.db', data_dir='../data'):
 
 
 def get_sql_query(client, prompt, user_query):
-    """Generate SQL from a natural language query using the Gemini API."""
-    contents = f"""
-    {prompt}
+    """Generate SQL from a natural language query using the Azure OpenAI API (LangChain)."""
 
-    Here's the user query in english you need to work on:
-    {user_query}
-    """
-    response = client.models.generate_content(model='gemini-2.5-flash', contents=contents)
+    # --- Gemini (Google GenAI) Implementation ---
+    # contents = f"""
+    # {prompt}
+    #
+    # Here's the user query in english you need to work on:
+    # {user_query}
+    # """
+    # response = client.models.generate_content(model='gemini-2.5-flash', contents=contents)
+    #
+    # usage_metadata = response.usage_metadata
+    # print(f"Input Token Count: {usage_metadata.prompt_token_count}")
+    # print(f"Thoughts Token Count: {response.usage_metadata.thoughts_token_count}")
+    # print(f"Output Token Count: {usage_metadata.candidates_token_count}")
+    # print(f"Total Token Count: {usage_metadata.total_token_count}")
+    #
+    # output = response.text.replace('```sql', '').replace('```', '').strip()
+    # return output
 
-    usage_metadata = response.usage_metadata
-    print(f"Input Token Count: {usage_metadata.prompt_token_count}")
-    print(f"Thoughts Token Count: {response.usage_metadata.thoughts_token_count}")
-    print(f"Output Token Count: {usage_metadata.candidates_token_count}")
-    print(f"Total Token Count: {usage_metadata.total_token_count}")
+    # --- Azure OpenAI (direct SDK) ---
+    # response = client.chat.completions.create(
+    #     model=os.environ['AZURE_OPENAI_DEPLOYMENT_NAME'],
+    #     messages=[
+    #         {"role": "system", "content": prompt},
+    #         {"role": "user", "content": user_query}
+    #     ]
+    # )
+    # usage = response.usage
+    # print(f"Input Token Count: {usage.prompt_tokens}")
+    # print(f"Output Token Count: {usage.completion_tokens}")
+    # print(f"Total Token Count: {usage.total_tokens}")
+    # output = response.choices[0].message.content.replace('```sql', '').replace('```', '').strip()
+    # return output
 
-    output = response.text.replace('```sql', '').replace('```', '').strip()
+    # --- Azure OpenAI (LangChain) ---
+    response = client.invoke([
+        SystemMessage(content=prompt),
+        HumanMessage(content=user_query)
+    ])
+
+    token_usage = response.response_metadata.get('token_usage', {})
+    print(f"Input Token Count: {token_usage.get('prompt_tokens', 'N/A')}")
+    print(f"Output Token Count: {token_usage.get('completion_tokens', 'N/A')}")
+    print(f"Total Token Count: {token_usage.get('total_tokens', 'N/A')}")
+
+    output = response.content.replace('```sql', '').replace('```', '').strip()
     return output
 
 
-def execute_query(query, db_name='ecommerce.db'):
+def execute_query(query, db_name=DB_PATH):
     """Execute a SQL query against the database and return results as a DataFrame."""
     conn = None
     try:
@@ -369,9 +427,8 @@ def execute_query(query, db_name='ecommerce.db'):
             conn.close()
 
 
-def text2sql(client, user_query, db_name='ecommerce.db'):
+def text2sql(client, user_query, db_name=DB_PATH):
     """Full pipeline: natural language → SQL → query results."""
-    prompt = get_system_prompt()
-    sql = get_sql_query(client, prompt, user_query)
+    sql = get_sql_query(client, SYSTEM_PROMPT, user_query)
     results = execute_query(sql, db_name)
     return sql, results

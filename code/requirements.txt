@@ -1,8 +1,10 @@
-google-genai
+# google-genai  # Gemini (Google GenAI)
 python-dotenv
 pandas
 langchain
-langchain-google-genai
+# langchain-google-genai  # Gemini (Google GenAI)
+langchain-openai
+# openai  # Azure OpenAI (direct SDK) - installed transitively by langchain-openai
 gradio
 fastapi
 uvicorn
