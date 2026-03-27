@@ -123,7 +123,6 @@ COLUMN_DATA_TYPES = {
     }
 }
 
-
 SYSTEM_PROMPT = """
 ###ROLE###
 You are a highly skilled Text-to-SQL translator with expertise in SQL syntax, database schema interpretation, and natural language understanding. You generate syntactically correct and semantically accurate SQL queries based on user input and a given database schema.
@@ -367,20 +366,6 @@ def get_sql_query(client, prompt, user_query):
     # output = response.text.replace('```sql', '').replace('```', '').strip()
     # return output
 
-    # --- Azure OpenAI (direct SDK) ---
-    # response = client.chat.completions.create(
-    #     model=os.environ['AZURE_OPENAI_DEPLOYMENT_NAME'],
-    #     messages=[
-    #         {"role": "system", "content": prompt},
-    #         {"role": "user", "content": user_query}
-    #     ]
-    # )
-    # usage = response.usage
-    # print(f"Input Token Count: {usage.prompt_tokens}")
-    # print(f"Output Token Count: {usage.completion_tokens}")
-    # print(f"Total Token Count: {usage.total_tokens}")
-    # output = response.choices[0].message.content.replace('```sql', '').replace('```', '').strip()
-    # return output
 
     # --- Azure OpenAI (LangChain) ---
     response = client.invoke([

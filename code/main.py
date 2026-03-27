@@ -13,12 +13,6 @@ load_dotenv()
 # --- Gemini (Google GenAI) ---
 # genai_client = genai.Client(api_key=os.environ['GOOGLE_API_KEY'])
 
-# --- Azure OpenAI (direct SDK) ---
-# genai_client = AzureOpenAI(
-#     api_key=os.environ['AZURE_OPENAI_API_KEY'],
-#     api_version=os.environ['AZURE_OPENAI_API_VERSION'],
-#     azure_endpoint=os.environ['AZURE_OPENAI_ENDPOINT']
-# )
 
 # --- Azure OpenAI (LangChain) ---
 genai_client = AzureChatOpenAI(

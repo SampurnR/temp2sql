@@ -1,56 +1,101 @@
-name: Build and Deploy Text2SQL to Azure VM
+# The display name of this GitHub Actions workflow, shown in the Actions tab
+name: Build and Deploy Text2SQL App to Azure VM
 
+# Defines the events that trigger this workflow
 on:
+    # Trigger the workflow whenever code is pushed to the specified branch
     push:
+        # Only run on pushes to the 'main' branch
         branches:
             - main
+    # Also allow the workflow to be triggered manually from the GitHub Actions UI
     workflow_dispatch:
 
+# Workflow-level environment variables available to all jobs and steps
+env:
+    # Forces all JavaScript-based GitHub Actions to run on Node.js 24 instead of older versions
+    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+# Defines the jobs that make up this workflow
 jobs:
+    # The unique identifier for this job
     deploy:
+        # Human-readable name displayed in the GitHub Actions UI
         name: Copy, Build & Deploy to Azure VM
+        # Specifies the type of virtual machine to run this job on (GitHub-hosted Ubuntu runner)
         runs-on: ubuntu-latest
+        # Links this job to the 'production' environment, enabling environment-level secrets and protection rules
         environment: production
 
+        # The ordered list of steps that make up this job
         steps:
+            # Step 1: Check out the repository code onto the runner
             - name: Checkout repository
+              # Uses the official GitHub checkout action at version 4
               uses: actions/checkout@v4
 
+            # Step 2: Securely copy all project files from the runner to the Azure VM
             - name: Copy code to VM
+              # Uses the appleboy SCP action to transfer files over SSH
               uses: appleboy/scp-action@v0.1.7
               with:
+                  # The IP address or hostname of the target Azure VM (stored as a secret)
                   host: ${{ secrets.VM_HOST }}
+                  # The SSH username used to authenticate with the VM (stored as a secret)
                   username: ${{ secrets.VM_USERNAME }}
+                  # The SSH password used to authenticate with the VM (stored as a secret)
                   password: ${{ secrets.VM_PASSWORD }}
+                  # Copy everything in the current directory, but exclude the .git folder
                   source: ".,!.git"
+                  # The destination path on the remote VM where files will be copied
                   target: /app/text2sql
 
+            # Step 3: SSH into the VM and build + run the updated Docker container
             - name: Build and restart container on VM
+              # Uses the appleboy SSH action to execute commands on the remote VM
               uses: appleboy/ssh-action@v1.2.0
               with:
+                  # The IP address or hostname of the target Azure VM (stored as a secret)
                   host: ${{ secrets.VM_HOST }}
+                  # The SSH username used to authenticate with the VM (stored as a secret)
                   username: ${{ secrets.VM_USERNAME }}
+                  # The SSH password used to authenticate with the VM (stored as a secret)
                   password: ${{ secrets.VM_PASSWORD }}
+                  # The shell script to execute on the remote VM
                   script: |
+                      # Change into the directory where the source code was copied
                       cd /app/text2sql
 
                       # Build image from the copied source
+                      # Build a new Docker image from the Dockerfile in the current directory and tag it as 'text2sql:latest'
                       docker build -t text2sql:latest .
 
                       # Stop and remove the existing container (if running)
+                      # Stop the running container named 'text2sql'; '|| true' prevents failure if it doesn't exist
                       docker stop text2sql || true
+                      # Remove the stopped container named 'text2sql'; '|| true' prevents failure if it doesn't exist
                       docker rm text2sql || true
 
                       # Run the new container
+                      # Start a new Docker container from the freshly built image
                       docker run -d \
+                        # Name the container 'text2sql' so it can be referenced by name in future commands
                         --name text2sql \
+                        # Automatically restart the container unless it was explicitly stopped
                         --restart unless-stopped \
+                        # Map port 7860 on the host to port 7860 inside the container (Gradio default port)
                         -p 7860:7860 \
+                        # Pass the Azure OpenAI API key into the container as an environment variable
                         -e AZURE_OPENAI_API_KEY="${{ secrets.AZURE_OPENAI_API_KEY }}" \
+                        # Pass the Azure OpenAI endpoint URL into the container as an environment variable
                         -e AZURE_OPENAI_ENDPOINT="${{ secrets.AZURE_OPENAI_ENDPOINT }}" \
+                        # Pass the Azure OpenAI model deployment name into the container as an environment variable
                         -e AZURE_OPENAI_DEPLOYMENT_NAME="${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}" \
+                        # Pass the Azure OpenAI API version into the container as an environment variable
                         -e AZURE_OPENAI_API_VERSION="${{ secrets.AZURE_OPENAI_API_VERSION }}" \
+                        # Specify the image to use for this container
                         text2sql:latest
 
                       # Remove dangling images to free up disk space
+                      # Delete all unused/untagged Docker images to reclaim disk space on the VM
                       docker image prune -f
