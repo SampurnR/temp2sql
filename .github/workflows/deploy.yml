@@ -1,0 +1,56 @@
+name: Build and Deploy Text2SQL to Azure VM
+
+on:
+    push:
+        branches:
+            - main
+    workflow_dispatch:
+
+jobs:
+    deploy:
+        name: Copy, Build & Deploy to Azure VM
+        runs-on: ubuntu-latest
+        environment: production
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Copy code to VM
+              uses: appleboy/scp-action@v0.1.7
+              with:
+                  host: ${{ secrets.VM_HOST }}
+                  username: ${{ secrets.VM_USERNAME }}
+                  password: ${{ secrets.VM_PASSWORD }}
+                  source: ".,!.git"
+                  target: /app/text2sql
+
+            - name: Build and restart container on VM
+              uses: appleboy/ssh-action@v1.2.0
+              with:
+                  host: ${{ secrets.VM_HOST }}
+                  username: ${{ secrets.VM_USERNAME }}
+                  password: ${{ secrets.VM_PASSWORD }}
+                  script: |
+                      cd /app/text2sql
+
+                      # Build image from the copied source
+                      docker build -t text2sql:latest .
+
+                      # Stop and remove the existing container (if running)
+                      docker stop text2sql || true
+                      docker rm text2sql || true
+
+                      # Run the new container
+                      docker run -d \
+                        --name text2sql \
+                        --restart unless-stopped \
+                        -p 7860:7860 \
+                        -e AZURE_OPENAI_API_KEY="${{ secrets.AZURE_OPENAI_API_KEY }}" \
+                        -e AZURE_OPENAI_ENDPOINT="${{ secrets.AZURE_OPENAI_ENDPOINT }}" \
+                        -e AZURE_OPENAI_DEPLOYMENT_NAME="${{ secrets.AZURE_OPENAI_DEPLOYMENT_NAME }}" \
+                        -e AZURE_OPENAI_API_VERSION="${{ secrets.AZURE_OPENAI_API_VERSION }}" \
+                        text2sql:latest
+
+                      # Remove dangling images to free up disk space
+                      docker image prune -f
