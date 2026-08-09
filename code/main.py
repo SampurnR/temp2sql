@@ -8,6 +8,7 @@ from langchain_openai import AzureChatOpenAI  # Azure OpenAI (LangChain)
 
 from helper import DB_PATH, setup_database, text2sql
 
+
 load_dotenv()
 
 # --- Gemini (Google GenAI) ---
