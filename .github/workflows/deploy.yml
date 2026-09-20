@@ -1,7 +1,6 @@
 # The display name of this GitHub Actions workflow, shown in the Actions tab
 name: Build and Deploy Text2SQL App to Azure VM
 
-
 # Defines the events that trigger this workflow
 on:
     # Trigger the workflow whenever code is pushed to the specified branch
